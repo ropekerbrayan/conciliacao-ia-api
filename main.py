@@ -8,7 +8,7 @@ import os
 from fastapi.middleware.cors import CORSMiddleware
 
 # Caminho para o modelo
-MODEL_PATH = os.path.join(os.path.dirname(__file__), '..', 'modelo', 'modelo_conciliacao.pkl')
+MODEL_PATH = 'modelo/modelo_conciliacao.pkl'
 
 # Tenta carregar o modelo treinado.
 try:
