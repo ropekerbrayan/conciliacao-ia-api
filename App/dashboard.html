@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Eagle</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        html { scroll-behavior: smooth; }
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            background-color: #000000;
+            overflow-x: hidden;
+        }
+        #app-container::before {
+            content: ''; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1;
+            background-image: radial-gradient(ellipse at 15% 90%, rgba(4, 0, 255, 0.25) 0%, transparent 50%),
+                              radial-gradient(ellipse at 85% 90%, rgba(11, 9, 134, 0.2) 0%, transparent 50%),
+                              radial-gradient(ellipse at 50% 95%, rgba(3, 3, 73, 0.2) 0%, transparent 50%);
+            background-color: #000;
+            -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px);
+        }
+        .main-action-btn {
+            background-image: linear-gradient(to right, #0075ff, #1700d4);
+            border: 1px solid #0075ff; color: white;
+            transition: all 0.3s ease;
+        }
+        .main-action-btn:hover:not(:disabled) { box-shadow: 0 0 30px rgba(0, 117, 255, 0.6); }
+        .main-action-btn:disabled {
+            background-image: none; background-color: #4b5563; border-color: #374151;
+            cursor: not-allowed; box-shadow: none; opacity: 0.5;
+        }
+        .main-action-btn:active:not(:disabled) { transform: scale(0.98); }
+        
+        .btn-api { transition: all 0.3s ease; }
+        .btn-api:hover { transform: translateY(-2px); }
+        .btn-api:active { transform: translateY(0px) scale(0.98); }
+        .btn-itau { background-color: #EC7000; }
+        .btn-itau:hover { background-color: #FF8200; box-shadow: 0 4px 15px rgba(236, 112, 0, 0.4); }
+        .btn-sicoob { background-color: #009B3A; }
+        .btn-sicoob:hover { background-color: #00b443; box-shadow: 0 4px 15px rgba(0, 155, 58, 0.4); }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .fade-in { animation: fadeIn 0.6s ease-out forwards; }
+        .sidebar { background-color: rgba(17, 24, 39, 0.7); border-right: 1px solid rgba(55, 65, 81, 0.5); }
+        .nav-link { transition: all 0.3s ease; border-left: 3px solid transparent; }
+        .nav-link.active, .nav-link:hover { background-color: rgba(255, 255, 255, 0.05); color: white; border-left-color: #0075ff; }
+        .dashboard-card, .data-table { background-color: rgba(31, 41, 55, 0.5); border: 1px solid rgba(55, 65, 81, 0.5); transition: all 0.3s ease; }
+        .dashboard-card:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0, 117, 255, 0.1); border-color: rgba(0, 117, 255, 0.3); }
+        .data-table th { background-color: rgba(17, 24, 39, 0.7); }
+        html::-webkit-scrollbar { width: 10px; }
+        html::-webkit-scrollbar-track { background: #0a0a0a; }
+        html::-webkit-scrollbar-thumb { background-color: #374151; border-radius: 10px; border: 2px solid #0a0a0a; }
+        html::-webkit-scrollbar-thumb:hover { background-color: #4b5563; }
+        .modal-backdrop { background-color: rgba(0, 0, 0, 0.7); backdrop-filter: blur(5px); }
+        .toast { position: fixed; bottom: 20px; right: 20px; z-index: 100; padding: 1rem 1.5rem; border-radius: 0.5rem; color: white; animation: fadeIn 0.5s, fadeOut 0.5s 4.5s; }
+        .toast.success { background-color: #10B981; }
+        .toast.error { background-color: #EF4444; }
+        
+        .reconciliation-card { background-color: rgba(17, 24, 39, 0.7); border: 2px solid rgba(55, 65, 81, 0.5); transition: all 0.2s ease-out; cursor: pointer; }
+        .reconciliation-card.manual-selected { border-color: #00AEEF; box-shadow: 0 0 15px rgba(0, 174, 239, 0.4); transform: scale(1.02); }
+        
+        .progress-bar { background-color: #374151; }
+        .progress-bar div { background-image: linear-gradient(to right, #0075ff, #1700d4); transition: width 0.5s ease-in-out; }
+        .accordion-button { transition: background-color 0.2s; }
+        .accordion-content { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-in-out; }
+        
+        .sub-tab-button {
+            background-color: transparent;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s ease;
+        }
+        .sub-tab-button.active {
+            color: #00AEEF;
+            border-bottom-color: #00AEEF;
+        }
+    </style>
+</head>
+<body class="text-gray-300">
+
+    <main id="app-container" class="w-full min-h-screen relative flex">
+        <aside class="sidebar w-64 p-4 flex-col fixed h-full hidden md:flex">
+             <div class="flex items-center gap-3 p-4 mb-6"><svg class="h-8 w-auto text-white" viewBox="0 0 160 115" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M79.673 0L60.593 19.08L41.513 0H0L41.513 41.513L15.343 67.683L41.513 93.853L60.593 74.773L79.673 93.853L101.443 72.083L117.613 88.253L129.153 76.713L110.073 57.633L126.243 41.513L160 75.213V38.583L118.487 0H79.673ZM79.673 38.583L98.753 57.633L79.673 76.713L60.593 57.633L79.673 38.583Z" fill="currentColor"/></svg><span class="text-2xl font-bold text-white">EAGLE</span></div>
+            <nav class="flex flex-col space-y-2">
+                <a href="#dashboard" class="nav-link active flex items-center gap-3 px-4 py-2 rounded-lg font-medium"><i data-lucide="layout-dashboard"></i> Dashboard</a>
+                <a href="#imports" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg font-medium"><i data-lucide="import"></i> Importações</a>
+                <a href="#reconciliation" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg font-medium"><i data-lucide="git-pull-request-arrow"></i> Conciliação</a>
+                <a href="#reports" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg font-medium"><i data-lucide="bar-chart-3"></i> Relatórios</a>
+                <a href="#credentials" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg font-medium"><i data-lucide="key-round"></i> Credenciais</a>
+                <a href="#config" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg font-medium"><i data-lucide="settings"></i> Configurações</a>
+            </nav>
+        </aside>
+
+        <main class="flex-1 p-6 lg:p-10 md:ml-64">
+            
+            <div id="dashboard-content" class="page-content fade-in">
+                <h1 class="text-3xl font-bold text-white mb-8">Dashboard</h1>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8"><div class="dashboard-card p-5 rounded-xl"><h3 class="text-gray-400 font-medium">Saldo a Receber</h3><p id="saldo-receber" class="text-2xl md:text-3xl font-bold text-white mt-1 break-words">R$ 0,00</p></div><div class="dashboard-card p-5 rounded-xl"><h3 class="text-gray-400 font-medium">Recebido Hoje</h3><p id="recebido-hoje" class="text-2xl md:text-3xl font-bold text-green-400 mt-1 break-words">R$ 0,00</p></div><div class="dashboard-card p-5 rounded-xl"><h3 class="text-gray-400 font-medium">Cobranças Vencidas</h3><p id="cobrancas-vencidas" class="text-2xl md:text-3xl font-bold text-red-400 mt-1 break-words">0</p></div><div class="dashboard-card p-5 rounded-xl"><h3 class="text-gray-400 font-medium">Pagamentos a Fazer</h3><p id="pagamentos-fazer" class="text-2xl md:text-3xl font-bold text-yellow-400 mt-1 break-words">R$ 4.320,00</p></div></div>
+                <div class="grid grid-cols-1 xl:grid-cols-5 gap-6"><div class="xl:col-span-3 data-table p-4 rounded-xl"><h2 class="text-xl font-bold text-white mb-4 px-2">Últimas Cobranças</h2><div id="ultimas-cobrancas-list" class="space-y-1"></div></div><div class="xl:col-span-2 data-table p-4 rounded-xl flex flex-col"><h2 class="text-xl font-bold text-white mb-4 px-2">Recebimentos (Últimos 7 dias)</h2><div class="relative h-64"><canvas id="incomeChart"></canvas></div></div></div>
+            </div>
+
+            <div id="imports-content" class="page-content hidden fade-in">
+                <h1 class="text-3xl font-bold text-white mb-6">Importação de Dados</h1>
+                <div class="space-y-6">
+                    <div class="data-table p-6 rounded-xl"><h3 class="text-lg font-bold text-white mb-4">Importação via Arquivo CSV</h3><p class="text-gray-400 mb-4">Carregue seus arquivos de cobranças do sistema e extratos bancários para iniciar a conciliação.</p><div class="flex flex-wrap gap-4"><label for="import-system-csv" class="main-action-btn font-semibold py-2 px-4 rounded-lg flex items-center gap-2 cursor-pointer"><i data-lucide="upload"></i> Imp. Cobranças do Sistema</label><input type="file" id="import-system-csv" class="hidden" accept=".csv"><label for="import-bank-csv" class="main-action-btn font-semibold py-2 px-4 rounded-lg flex items-center gap-2 cursor-pointer"><i data-lucide="landmark"></i> Imp. Extrato Bancário</label><input type="file" id="import-bank-csv" class="hidden" accept=".csv"></div></div>
+                    <div class="data-table p-6 rounded-xl"><h3 class="text-lg font-bold text-white mb-4">Importação via API Bancária</h3><p class="text-gray-400 mb-4">Conecte-se diretamente com as APIs dos bancos para buscar as transações PIX mais recentes. Configure suas credenciais na aba 'Credenciais'.</p><div class="flex flex-wrap gap-4"><button onclick="importarPixSicoob()" class="btn-api btn-sicoob text-white font-semibold py-2 px-4 rounded-lg flex items-center gap-2 cursor-pointer"><i data-lucide="download-cloud"></i> Importar PIX (Sicoob)</button><button onclick="importarPixItau()" class="btn-api btn-itau text-white font-semibold py-2 px-4 rounded-lg flex items-center gap-2 cursor-pointer"><i data-lucide="download-cloud"></i> Importar PIX (Itaú)</button></div></div>
+                </div>
+            </div>
+
+            <div id="reconciliation-content" class="page-content hidden fade-in">
+                <div class="border-b border-gray-700 mb-6">
+                    <nav class="flex -mb-px space-x-6" id="reconciliation-tabs">
+                        <button onclick="switchReconciliationTab('process')" class="sub-tab-button active font-semibold text-white px-1 py-3">Processo de Conciliação</button>
+                        <button onclick="switchReconciliationTab('history')" class="sub-tab-button font-semibold text-gray-400 px-1 py-3">Histórico e Gestão</button>
+                    </nav>
+                </div>
+
+                <div id="reconciliation-process-panel">
+                    <div class="flex flex-wrap justify-between items-center mb-6 gap-4"><h1 class="text-3xl font-bold text-white">Conciliação Inteligente</h1><button id="start-reconciliation-btn" onclick="iniciarConciliacaoInteligente()" class="main-action-btn font-bold py-3 px-6 rounded-lg flex items-center gap-2"><i data-lucide="play-circle"></i> Iniciar Conciliação</button></div>
+                    <div id="reconciliation-process" class="hidden space-y-4 mb-8">
+                        <div class="flex justify-between items-center"><span id="status-text" class="text-lg text-gray-300">A iniciar processo...</span><span id="progress-percentage" class="font-bold text-white">0%</span></div>
+                        <div class="progress-bar w-full rounded-full h-2.5"><div id="progress-bar-inner" class="h-2.5 rounded-full" style="width: 0%"></div></div>
+                    </div>
+                    <div id="reconciliation-results" class="hidden space-y-4"></div>
+                </div>
+
+                <div id="reconciliation-history-panel" class="hidden">
+                     <h1 class="text-3xl font-bold text-white mb-6">Histórico de Conciliações</h1>
+                     <div id="history-list" class="space-y-4"></div>
+                </div>
+            </div>
+
+            <div id="reports-content" class="page-content hidden fade-in"><h1 class="text-3xl font-bold text-white mb-6">Relatórios de Conciliação</h1><div id="relatorios-list" class="data-table rounded-xl p-4"></div></div>
+
+            <div id="credentials-content" class="page-content hidden fade-in"><h1 class="text-3xl font-bold text-white mb-6">Credenciais de API</h1><div class="data-table p-6 rounded-xl max-w-2xl space-y-4"><h3 class="text-lg font-bold text-white mb-2">Integrações de API</h3><div class="p-4 border border-gray-700 rounded-lg"><h4 class="font-semibold text-orange-400 mb-2">Itaú</h4><div class="w-full"><label for="itau-api-key" class="text-sm font-medium">Chave da API (x-itau-apikey)</label><input type="password" id="itau-api-key" class="w-full bg-gray-900 border border-gray-600 rounded-lg p-2 mt-1" placeholder="********-****-****-****-************"></div></div><div class="p-4 border border-gray-700 rounded-lg"><h4 class="font-semibold text-green-400 mb-2">Sicoob</h4><div class="w-full mb-2"><label for="sicoob-client-id" class="text-sm font-medium">Client ID</label><input type="text" id="sicoob-client-id" class="w-full bg-gray-900 border border-gray-600 rounded-lg p-2 mt-1"></div><div class="w-full"><label for="sicoob-token" class="text-sm font-medium">Token de Acesso (Bearer)</label><input type="password" id="sicoob-token" class="w-full bg-gray-900 border border-gray-600 rounded-lg p-2 mt-1"></div></div><button onclick="saveApiConfig()" class="bg-gray-600 hover:bg-gray-500 font-semibold py-2 px-5 rounded-lg mt-4">Salvar Credenciais</button></div></div>
+
+            <div id="config-content" class="page-content hidden fade-in"><h1 class="text-3xl font-bold text-white mb-6">Configurações</h1><div class="data-table p-6 rounded-xl max-w-2xl space-y-8">
+                <div id="cartao-taxas-config">
+                    <h3 class="text-lg font-bold text-white mb-4">Taxas de Cartão por Tipo (Fallback)</h3>
+                    <div class="space-y-4">
+                        <div class="p-4 border border-gray-700 rounded-lg">
+                            <h4 class="font-semibold text-sky-400 mb-3">Débito</h4>
+                            <div class="flex items-end gap-2">
+                                <div class="flex-1">
+                                    <label for="debito-rate" class="text-xs">Taxa Única (%)</label>
+                                    <input type="number" step="0.01" id="debito-rate" class="w-full bg-gray-900 border border-gray-700 rounded p-1 text-sm">
+                                </div>
+                                <button onclick="atualizarTaxaCartao('debito', 1, document.getElementById('debito-rate').value)" class="bg-gray-600 hover:bg-gray-500 text-xs font-bold py-1 px-3 rounded">Salvar</button>
+                            </div>
+                        </div>
+                        <div class="p-4 border border-gray-700 rounded-lg">
+                            <h4 class="font-semibold text-rose-400 mb-3">Crédito (por parcela)</h4>
+                            <div id="credito-rates" class="grid grid-cols-2 md:grid-cols-4 gap-4"></div>
+                        </div>
+                    </div>
+                </div>
+            </div></div>
+        </main>
+    </main>
+    
+    <div id="toast-container"></div>
+    <div id="cartao-details-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop"><div class="bg-gray-800 border border-gray-700 rounded-xl p-6 w-full max-w-md fade-in"><h2 class="text-2xl font-bold text-white mb-4">Detalhes da Transação de Cartão</h2><div id="cartao-details-content" class="space-y-2"></div><div class="flex justify-end mt-6"><button onclick="closeCartaoModal()" class="bg-gray-600 hover:bg-gray-500 font-bold py-2 px-4 rounded-lg">Fechar</button></div></div></div>
+
+    <script>
+        lucide.createIcons();
+        
+        let appState = {
+            cobrancas: [
+                { id: 'BOL-001', codigoCliente: 'C001', cliente: 'Tech Solutions', valor: 5000.00, vencimento: '2025-06-30', formaPagamento: 'Boleto' },
+                { id: 'PIX-002', codigoCliente: 'C002', cliente: 'Inova Corp', valor: 2500.00, vencimento: '2025-06-28', formaPagamento: 'PIX' },
+                { id: 'NF-100', codigoCliente: 'C005', cliente: 'Consultoria XYZ', valor: 100.00, vencimento: '2025-07-10', formaPagamento: 'Credito 3x Visa' },
+                { id: 'CART-001', codigoCliente: 'C007', cliente: 'Loja Tech', valor: 1500.00, vencimento: '2025-07-15', formaPagamento: 'Debito Master' }
+            ],
+            transacoes: [
+                { id: 'E123ABC', data: '28/06/2025 10:15', valor: 2500.00, tipo: 'PIX', infoPagador: 'Inova Corp Ltda', transacaoId: 'E123ABC' },
+                { id: 'E456DEF', data: '10/07/2025 11:00', valor: 97.01, tipo: 'CIELO', infoPagador: 'Pagamento Cartao XYZ', transacaoId: 'E456DEF' },
+                { id: 'C789JKL', data: '15/07/2025 16:30', valor: 1470.15, tipo: 'REDE', infoPagador: 'Loja Tech', transacaoId: 'C789JKL' }
+            ],
+            taxasCartao: {
+                "debito": 1.99,
+                "credito": { 1: 4.98, 2: 5.59, 3: 6.18, 4: 6.77, 5: 7.36, 6: 7.95, 7: 8.54, 8: 9.13, 9: 9.72, 10: 10.31, 11: 10.90, 12: 11.49 }
+            },
+            conciliacoesConcluidas: [],
+            pagamentosAFazer: 4320.00, itauApiKey: '', sicoobClientId: '', sicoobToken: '',
+            manualPending: { cobrancas: [], transacoes: [] }
+        };
+        let sugestoesGlobais = [];
+        let manualSelection = {cobrancas: [], transacoes: []};
+        let incomeChartInstance = null;
+
+        const formatCurrency = (value) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        const showToast = (message, type = 'success') => { const toastContainer = document.getElementById('toast-container'); const toast = document.createElement('div'); toast.className = `toast ${type}`; toast.textContent = message; toastContainer.appendChild(toast); setTimeout(() => toast.remove(), 5000); };
+        const parseDate = (dateString) => { const parts = dateString.split('-'); return new Date(parts[0], parts[1] - 1, parts[2]); };
+
+        document.querySelector('aside nav')?.addEventListener('click', e => {
+            const link = e.target.closest('a');
+            if (link) {
+                e.preventDefault();
+                document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+                link.classList.add('active');
+                const targetId = link.getAttribute('href').substring(1) + '-content';
+                document.querySelectorAll('.page-content').forEach(p => p.classList.add('hidden'));
+                document.getElementById(targetId)?.classList.remove('hidden');
+                if(targetId === 'dashboard-content') { renderDashboardChart(); }
+            }
+        });
+        
+        const renderAll = () => { renderDashboard(); renderReports(); renderCartaoTaxasConfig(); renderHistory(); };
+        const renderDashboard = () => { /* CÓDIGO SEM ALTERAÇÃO */ };
+        const renderDashboardChart = () => { /* CÓDIGO SEM ALTERAÇÃO */ };
+        const renderReports = () => { /* CÓDIGO SEM ALTERAÇÃO */ };
+
+        const createAccordionItem = (id, title, count, content) => {
+            const color = count > 0 ? 'bg-blue-600' : 'bg-gray-600';
+            return `<div class="data-table rounded-lg overflow-hidden"><button id="accordion-btn-${id}" class="accordion-button w-full flex justify-between items-center p-4 text-left font-bold text-white hover:bg-gray-700/50"><span>${title}</span><div class="flex items-center gap-2"><span class="text-sm px-2 py-0.5 rounded-full ${color}">${count}</span><i data-lucide="chevron-down" class="transition-transform"></i></div></button><div id="accordion-content-${id}" class="accordion-content bg-black/20"><div class="p-4 space-y-4">${content || '<p class="text-gray-400">Nenhum item nesta categoria.</p>'}</div></div></div>`;
+        };
+        
+        const setupAccordionListeners = () => {
+            document.querySelectorAll('.accordion-button').forEach(button => {
+                button.addEventListener('click', () => {
+                    const content = button.nextElementSibling;
+                    const icon = button.querySelector('svg');
+                    if (content && icon) {
+                        if (content.style.maxHeight) {
+                            content.style.maxHeight = null;
+                            icon.style.transform = 'rotate(0deg)';
+                        } else {
+                            content.style.maxHeight = content.scrollHeight + "px";
+                            icon.style.transform = 'rotate(180deg)';
+                        } 
+                    }
+                });
+            });
+        };
+
+        const renderCard = (item, type, suggestion = null, isManual = false) => {
+            const valueColor = type === 'cobranca' ? 'text-yellow-400' : 'text-green-400';
+            const sourceTypeHtml = type === 'cobranca' ? `<span class="bg-yellow-900/50 text-yellow-300 text-xs font-semibold px-2 py-0.5 rounded-full">Sistema</span>` : `<span class="bg-green-900/50 text-green-300 text-xs font-semibold px-2 py-0.5 rounded-full">Banco</span>`;
+            let suggestionHtml = '';
+            if (suggestion) { suggestionHtml = `<div class="mt-2 p-2 bg-blue-900/50 border-l-4 border-blue-500 rounded-r-md"><p class="text-xs text-blue-300 font-semibold">Sugestão: <span class="font-normal">${suggestion.razao} (${(suggestion.confianca * 100).toFixed(0)}%)</span></p>${suggestion.detalhesTaxa ? `<p class="text-xs text-blue-200 mt-1">${suggestion.detalhesTaxa}</p>` : ''}</div>`; }
+            let cardDetailsBtn = '';
+            if (item.detalhesCartao) { cardDetailsBtn = `<button class="mt-2 text-xs text-blue-400 hover:underline" onclick='event.stopPropagation(); openCartaoModal(${JSON.stringify(item).replace(/'/g, "&apos;")})'>Ver detalhes da taxa</button>`; }
+            const onclickAttr = isManual ? `onclick="selecionarItemManual(this, '${type}', '${item.id}')"` : '';
+
+            return `<div class="reconciliation-card rounded-lg p-3" ${onclickAttr} data-id="${item.id}" data-type="${type}">
+                        <div class="flex-1 min-w-0">
+                            <div class="flex justify-between items-start"><p class="font-bold text-white truncate">${type === 'cobranca' ? item.cliente : item.infoPagador}</p><span class="text-lg font-bold ${valueColor}">${formatCurrency(item.valor)}</span></div>
+                            <p class="text-sm text-gray-400">${type === 'cobranca' ? `Cód: ${item.codigoCliente} | Forma: ${item.formaPagamento}` : `Tipo: ${item.tipo}`}</p>
+                            <div class="text-xs text-gray-500 mt-2 flex justify-between items-center"><span>${type === 'cobranca' ? `Venc: ${item.vencimento}` : `Data: ${item.data}`}</span>${sourceTypeHtml}</div>
+                            <div class="text-xs text-gray-500 mt-1"><span class="truncate">ID: <span class="font-mono">${item.id}</span></span></div>
+                            ${suggestionHtml} ${cardDetailsBtn}
+                        </div>
+                    </div>`;
+        };
+
+        const updateProgress = (phase, percentage, text) => { document.getElementById('status-text').textContent = `Fase ${phase}: ${text}`; document.getElementById('progress-percentage').textContent = `${percentage}%`; document.getElementById('progress-bar-inner').style.width = `${percentage}%`; };
+        
+        const identificarTipoCartao = (descricao) => { const lowerDesc = descricao.toLowerCase(); if(lowerDesc.includes('debito') || lowerDesc.includes('dbto')) return 'debito'; if(lowerDesc.includes('credito') || lowerDesc.includes('cdto')) return 'credito'; return null;};
+        const detectarParcelas = (descricao) => { const regexes = [ /(\d+)\s?[xX]/, /parc\w*\s?(\d+)/, /em\s?(\d+)\s?vez/ ]; for (const regex of regexes) { const match = descricao.match(regex); if (match && match[1]) { return parseInt(match[1]); } } return 1; };
+        
+        async function calcularValorLiquido(valorBruto, tipo, parcelas) {
+             const taxas = appState.taxasCartao;
+             let taxaPercentual;
+             if(tipo === 'debito') { taxaPercentual = taxas.debito;
+             } else { taxaPercentual = taxas.credito?.[parcelas] || taxas.credito[1]; }
+             const taxaValor = valorBruto * (taxaPercentual / 100);
+             const valorLiquido = valorBruto - taxaValor;
+             return { valorLiquido: parseFloat(valorLiquido.toFixed(2)), taxaPercentual, taxaValor: parseFloat(taxaValor.toFixed(2)) };
+        }
+        
+        const iniciarConciliacaoInteligente = async () => {
+            document.getElementById('reconciliation-process').classList.remove('hidden');
+            document.getElementById('reconciliation-results').innerHTML = '';
+            document.getElementById('start-reconciliation-btn').disabled = true;
+
+            let cobrancas = JSON.parse(JSON.stringify(appState.cobrancas));
+            let transacoes = JSON.parse(JSON.stringify(appState.transacoes));
+            let conciliados = [];
+            sugestoesGlobais = [];
+
+            // --- FASE 1: PRÉ-PROCESSAMENTO E MATCH EXATO ---
+            updateProgress(1, 10, 'Pré-processamento e Limpeza');
+            await new Promise(resolve => setTimeout(resolve, 200));
+            updateProgress(1, 25, 'Conciliação Automática (Match Exato)');
+            let remainingCobrancas = [];
+            for (const cob of cobrancas) {
+                const matchIndex = transacoes.findIndex(tr => tr.valor === cob.valor && tr.infoPagador.toLowerCase().includes(cob.cliente.toLowerCase()));
+                if (matchIndex > -1) {
+                    conciliados.push({ cobrancas: [cob], transacao: transacoes[matchIndex], razao: "Match exato de valor e nome" });
+                    transacoes.splice(matchIndex, 1);
+                } else { remainingCobrancas.push(cob); }
+            }
+            cobrancas = remainingCobrancas;
+
+            // --- FASE 2: MATCH DE CARTÃO COM TAXAS ---
+            updateProgress(2, 50, 'Busca Inteligente (Taxas de Cartão)');
+            await new Promise(resolve => setTimeout(resolve, 500));
+            remainingCobrancas = [];
+            const valorTolerancia = 0.02; 
+            for (const cob of cobrancas) {
+                let foundMatch = false;
+                const tipoCartao = identificarTipoCartao(cob.formaPagamento);
+                if (tipoCartao) {
+                    const parcelas = detectarParcelas(cob.formaPagamento);
+                    const resultadoTaxa = await calcularValorLiquido(cob.valor, tipoCartao, parcelas);
+                    cob.detalhesCartao = { ...resultadoTaxa, tipo: tipoCartao, parcelas };
+                    const cardMatchIndex = transacoes.findIndex(tr => Math.abs(tr.valor - resultadoTaxa.valorLiquido) <= valorTolerancia);
+                    if (cardMatchIndex > -1) {
+                        sugestoesGlobais.push({ cobrancas: [cob], transacao: transacoes[cardMatchIndex], razao: 'Valor líquido de cartão corresponde à transação do banco', confianca: 0.95, detalhesTaxa: `Bruto: ${formatCurrency(cob.valor)} - Taxa(${resultadoTaxa.taxaPercentual}%): ${formatCurrency(resultadoTaxa.taxaValor)} = Líquido: ${formatCurrency(resultadoTaxa.valorLiquido)}` });
+                        transacoes.splice(cardMatchIndex, 1);
+                        foundMatch = true;
+                    }
+                }
+                if (!foundMatch) { remainingCobrancas.push(cob); }
+            }
+            cobrancas = remainingCobrancas;
+            
+            // --- FASE 3: ANÁLISE PREDITIVA COM IA (NOVA LÓGICA) ---
+            updateProgress(3, 75, 'Análise Preditiva (IA)');
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            const limiarDeConfianca = 0.70; // Defina seu limite (ex: 70%)
+            let idsCobrancasUsadas = [];
+            let idsTransacoesUsadas = [];
+
+            for (const cob of cobrancas) {
+                // Pula cobranças já usadas em sugestões anteriores
+                if (idsCobrancasUsadas.includes(cob.id)) continue;
+
+                for (const trans of transacoes) {
+                    // Pula transações já usadas em sugestões anteriores
+                    if (idsTransacoesUsadas.includes(trans.id)) continue;
+                    
+                    try {
+                        const corpoRequisicao = {
+                            cliente_cob: cob.cliente,
+                            info_pagador: trans.infoPagador,
+                            valor_cob: cob.valor,
+                            valor_trans: trans.valor,
+                            tipo_cob: cob.formaPagamento,
+                            tipo_trans: trans.tipo
+                        };
+
+                        const response = await fetch('http://127.0.0.1:8000/prever', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(corpoRequisicao)
+                        });
+
+                        if (!response.ok) {
+                            console.error("Erro na API: ", response.statusText);
+                            continue; // Pula para a próxima iteração
+                        }
+
+                        const predicao = await response.json();
+
+                        if (predicao.match && predicao.confianca >= limiarDeConfianca) {
+                            sugestoesGlobais.push({
+                                cobrancas: [cob],
+                                transacao: trans,
+                                razao: `Sugestão da IA com ${Math.round(predicao.confianca * 100)}% de confiança`,
+                                confianca: predicao.confianca
+                            });
+                            // Marca os IDs como usados para não serem usados novamente neste ciclo
+                            idsCobrancasUsadas.push(cob.id);
+                            idsTransacoesUsadas.push(trans.id);
+                            break; // Sai do loop interno, pois a cobrança já encontrou seu par
+                        }
+
+                    } catch (error) {
+                        console.error("Erro ao chamar a API de predição:", error);
+                        showToast('Erro de comunicação com a API de IA.', 'error');
+                        // Se a API estiver offline, pare de tentar para não sobrecarregar
+                        document.getElementById('start-reconciliation-btn').disabled = false;
+                        return;
+                    }
+                }
+            }
+            
+            // Remove os itens que foram usados pela IA das listas de pendência manual
+            cobrancas = cobrancas.filter(c => !idsCobrancasUsadas.includes(c.id));
+            transacoes = transacoes.filter(t => !idsTransacoesUsadas.includes(t.id));
+
+            // --- FASE 4: CONCLUSÃO E RENDERIZAÇÃO ---
+            updateProgress(4, 100, 'Processo Concluído!');
+            
+            appState.manualPending.cobrancas = cobrancas;
+            appState.manualPending.transacoes = transacoes;
+            
+            const resultsContainer = document.getElementById('reconciliation-results');
+            let html = '';
+            let conciliadosContent = conciliados.map(item => `<div class="p-3 bg-gray-900/50 border border-gray-700 rounded-lg shadow-md">${item.cobrancas.map(c => renderCard(c, 'cobranca')).join('')} <div class="text-center text-green-400 font-bold my-2">↑↓</div> ${renderCard(item.transacao, 'transacao')}</div>`).join('');
+            html += createAccordionItem('conciliados', 'Conciliados Automaticamente', conciliados.length, conciliadosContent);
+            
+            // Ordena as sugestões pela confiança, da maior para a menor
+            sugestoesGlobais.sort((a, b) => b.confianca - a.confianca);
+            let sugestoesContent = sugestoesGlobais.map((item, index) => `<div class="p-3 bg-gray-900/50 border border-gray-700 rounded-lg shadow-md">${item.cobrancas.map(cob => renderCard(cob, 'cobranca', item)).join('<div class="text-center text-blue-400 font-bold my-1">+</div>')} <div class="text-center text-blue-400 font-bold my-2">↑↓</div> ${renderCard(item.transacao, 'transacao', item)}<div class="text-right mt-2"><button class="bg-blue-600 hover:bg-blue-500 text-xs font-bold py-1 px-3 rounded" onclick="aceitarSugestao(${index})">Aceitar Sugestão</button></div></div>`).join('');
+            html += createAccordionItem('sugestoes', 'Sugestões de Conciliação', sugestoesGlobais.length, sugestoesContent);
+            
+            let manualContent = `<div id="manual-reconciliation-area" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="space-y-3 md:col-span-1" id="manual-cobrancas-list">${cobrancas.map(c => renderCard(c, 'cobranca', null, true)).join('')}</div>
+                <div class="space-y-3 md:col-span-1 flex flex-col items-center justify-center bg-gray-900/30 rounded-lg p-4" id="manual-pairing-area"></div>
+                <div class="space-y-3 md:col-span-1" id="manual-transacoes-list">${transacoes.map(t => renderCard(t, 'transacao', null, true)).join('')}</div>
+            </div>`;
+            html += createAccordionItem('manual', 'Intervenção Manual', cobrancas.length + transacoes.length, manualContent);
+            
+            resultsContainer.innerHTML = html;
+            lucide.createIcons();
+            setupAccordionListeners();
+            resultsContainer.classList.remove('hidden');
+            document.getElementById('start-reconciliation-btn').disabled = false;
+            updateManualPairingUI();
+        };
+
+        function aceitarSugestao(sugestaoIndex) {
+            const sugestao = sugestoesGlobais[sugestaoIndex];
+            if (!sugestao) { showToast('Erro ao aceitar sugestão.', 'error'); return; }
+            appState.conciliacoesConcluidas.push({ data: new Date().toISOString(), cobrancas: sugestao.cobrancas, transacoes: [sugestao.transacao], totalCobrancas: sugestao.cobrancas.reduce((sum, c) => sum + c.valor, 0), totalTransacoes: sugestao.transacao.valor, diferenca: sugestao.transacao.valor - sugestao.cobrancas.reduce((sum, c) => sum + c.valor, 0), notas: `Conciliado via sugestão da IA: ${sugestao.razao}` });
+            const idsCobrancasAceitas = sugestao.cobrancas.map(c => c.id);
+            const idTransacaoAceita = sugestao.transacao.id;
+            appState.cobrancas = appState.cobrancas.filter(c => !idsCobrancasAceitas.includes(c.id));
+            appState.transacoes = appState.transacoes.filter(t => t.id !== idTransacaoAceita);
+            showToast('Sugestão aceite e conciliada com sucesso!', 'success');
+            setTimeout(() => { iniciarConciliacaoInteligente(); }, 500);
+        }
+
+        function renderCartaoTaxasConfig() {
+            const container = document.getElementById('cartao-taxas-config');
+            if (!container) return;
+            const debitoInput = document.getElementById('debito-rate');
+            const creditoContainer = document.getElementById('credito-rates');
+            debitoInput.value = appState.taxasCartao.debito;
+            creditoContainer.innerHTML = '';
+            for (let i = 1; i <= 12; i++) {
+                const taxa = appState.taxasCartao.credito[i] || 0;
+                creditoContainer.innerHTML += `<div class="flex flex-col"><label class="text-xs">${i}x</label><input type="number" step="0.01" value="${taxa}" class="w-full bg-gray-900 border border-gray-700 rounded p-1 text-sm" onchange="atualizarTaxaCartao('credito', ${i}, this.value)"></div>`;
+            }
+        }
+        function atualizarTaxaCartao(tipo, parcelas, valor) { 
+            if (tipo === 'debito') {
+                appState.taxasCartao.debito = parseFloat(valor);
+            } else {
+                appState.taxasCartao.credito[parcelas] = parseFloat(valor); 
+            }
+            showToast(`Taxa de ${tipo} ${parcelas > 1 ? parcelas+'x' : ''} atualizada!`); 
+        }
+        function openCartaoModal(cobranca) { if (!cobranca.detalhesCartao) return; const { tipo, parcelas, taxaPercentual, taxaValor, valorLiquido } = cobranca.detalhesCartao; const content = document.getElementById('cartao-details-content'); content.innerHTML = `<div class="flex justify-between"><span class="text-gray-400">Tipo:</span><span class="font-bold">${tipo.toUpperCase()}</span></div><div class="flex justify-between"><span class="text-gray-400">Parcelas:</span><span class="font-bold">${parcelas}x</span></div><div class="flex justify-between"><span class="text-gray-400">Valor Bruto:</span><span class="font-bold">${formatCurrency(cobranca.valor)}</span></div><div class="flex justify-between"><span class="text-gray-400">Taxa:</span><span class="font-bold text-red-400">${taxaPercentual}% (${formatCurrency(taxaValor)})</span></div><div class="flex justify-between border-t border-gray-700 pt-2"><span class="text-gray-400">Valor Líquido:</span><span class="font-bold text-green-400">${formatCurrency(valorLiquido)}</span></div>`; document.getElementById('cartao-details-modal').classList.remove('hidden'); }
+        function closeCartaoModal() { document.getElementById('cartao-details-modal').classList.add('hidden'); }
+
+        const saveApiConfig = () => { appState.itauApiKey = document.getElementById('itau-api-key').value; appState.sicoobClientId = document.getElementById('sicoob-client-id').value; appState.sicoobToken = document.getElementById('sicoob-token').value; showToast('Credenciais de API salvas!'); };
+        const loadApiConfig = () => { document.getElementById('itau-api-key').value = appState.itauApiKey; document.getElementById('sicoob-client-id').value = appState.sicoobClientId; document.getElementById('sicoob-token').value = appState.sicoobToken; };
+        
+        document.getElementById('imports-content')?.addEventListener('change', (e) => {
+            if (e.target.id === 'import-system-csv') handleFileUpload(e, 'cobrancas');
+            if (e.target.id === 'import-bank-csv') handleFileUpload(e, 'transacoes');
+        });
+        
+        function selecionarItemManual(element, tipo, id) {
+            element.classList.toggle('manual-selected');
+            const itemArray = tipo === 'cobranca' ? manualSelection.cobrancas : manualSelection.transacoes;
+            const sourceArrayName = tipo === 'cobranca' ? 'cobrancas' : 'transacoes';
+            const sourceArray = appState.manualPending[sourceArrayName];
+            
+            if (!sourceArray) { return; }
+
+            const itemData = sourceArray.find(i => i.id === id);
+            
+            const index = itemArray.findIndex(i => i.id === id);
+            if (index > -1) {
+                itemArray.splice(index, 1);
+            } else {
+                if (itemData) { itemArray.push(itemData); }
+            }
+            updateManualPairingUI();
+        }
+
+        function updateManualPairingUI() {
+            const pairingArea = document.getElementById('manual-pairing-area');
+            if (!pairingArea) return;
+
+            const totalCobrancas = manualSelection.cobrancas.reduce((sum, item) => sum + item.valor, 0);
+            const totalTransacoes = manualSelection.transacoes.reduce((sum, item) => sum + item.valor, 0);
+            const diferenca = totalTransacoes - totalCobrancas;
+
+            if (manualSelection.cobrancas.length === 0 && manualSelection.transacoes.length === 0) {
+                pairingArea.innerHTML = `<p class="text-gray-500 text-center">Selecione itens de cada lado para criar um par.</p>`;
+                return;
+            }
+
+            pairingArea.innerHTML = `
+                <div class="text-center w-full">
+                    <p class="font-bold text-yellow-400">Total Cobranças: ${formatCurrency(totalCobrancas)}</p>
+                    <p class="font-bold text-green-400">Total Transações: ${formatCurrency(totalTransacoes)}</p>
+                    <hr class="border-gray-600 my-2">
+                    <p class="font-bold text-lg">Diferença: <span class="${diferenca.toFixed(2) != '0.00' ? 'text-red-400' : 'text-white'}">${formatCurrency(diferenca)}</span></p>
+                    <button onclick="confirmarConciliacaoManual()" class="main-action-btn w-full mt-4 py-2 rounded-lg text-sm font-bold">Conciliar Par</button>
+                </div>
+            `;
+        }
+
+        function confirmarConciliacaoManual() {
+             if (manualSelection.cobrancas.length === 0 || manualSelection.transacoes.length === 0) {
+                showToast('Selecione pelo menos uma cobrança e uma transação.', 'error');
+                return;
+            }
+            appState.conciliacoesConcluidas.push({ data: new Date().toISOString(), cobrancas: manualSelection.cobrancas, transacoes: manualSelection.transacoes, totalCobrancas: manualSelection.cobrancas.reduce((sum, c) => sum + c.valor, 0), totalTransacoes: manualSelection.transacoes.reduce((sum, t) => sum + t.valor, 0), diferenca: manualSelection.transacoes.reduce((sum, t) => sum + t.valor, 0) - manualSelection.cobrancas.reduce((sum, c) => sum + c.valor, 0), notas: `Conciliado manualmente pelo administrador.` });
+            
+            const idsCobrancasAceitas = manualSelection.cobrancas.map(c => c.id);
+            const idsTransacoesAceitas = manualSelection.transacoes.map(t => t.id);
+            appState.cobrancas = appState.cobrancas.filter(c => !idsCobrancasAceitas.includes(c.id));
+            appState.transacoes = appState.transacoes.filter(t => !idsTransacoesAceitas.includes(t.id));
+            
+            manualSelection = {cobrancas: [], transacoes: []};
+            showToast('Par conciliado manualmente com sucesso!', 'success');
+            setTimeout(() => { iniciarConciliacaoInteligente(); }, 500);
+        }
+        
+        function switchReconciliationTab(tabName) {
+            document.querySelectorAll('#reconciliation-tabs button').forEach(btn => btn.classList.remove('active', 'text-white'));
+            document.querySelector(`button[onclick="switchReconciliationTab('${tabName}')"]`).classList.add('active', 'text-white');
+
+            const processPanel = document.getElementById('reconciliation-process-panel');
+            const historyPanel = document.getElementById('reconciliation-history-panel');
+
+            if (tabName === 'process') {
+                processPanel.classList.remove('hidden');
+                historyPanel.classList.add('hidden');
+            } else {
+                processPanel.classList.add('hidden');
+                historyPanel.classList.remove('hidden');
+                renderHistory();
+            }
+        }
+
+        function renderHistory() {
+            const historyList = document.getElementById('history-list');
+            if (!historyList) return;
+
+            if (appState.conciliacoesConcluidas.length === 0) {
+                historyList.innerHTML = '<p class="text-gray-400 text-center">Nenhum item foi conciliado ainda.</p>';
+                return;
+            }
+
+            historyList.innerHTML = appState.conciliacoesConcluidas.map((item, index) => {
+                const tipoConciliacao = item.notas.includes('IA') ? 'Sugestão da IA' : (item.notas.includes('manual') ? 'Manual' : 'Automática');
+                const corTipo = tipoConciliacao === 'Manual' ? 'text-yellow-400' : 'text-blue-400';
+
+                return `
+                    <div class="p-4 bg-gray-900/50 border border-gray-700 rounded-lg shadow-md mb-4">
+                        <div class="flex justify-between items-center mb-3">
+                            <div class="flex items-center gap-3">
+                                 <span class="font-bold text-lg">${new Date(item.data).toLocaleString('pt-BR')}</span>
+                                 <span class="text-xs font-semibold px-2 py-1 rounded-full ${corTipo} bg-opacity-20">${tipoConciliacao}</span>
+                            </div>
+                            <div class="flex gap-2">
+                                <button onclick="reverterConciliacao(${index})" class="text-xs bg-yellow-600 hover:bg-yellow-500 text-white rounded px-3 py-1 flex items-center gap-1"><i data-lucide="rotate-ccw" class="w-3 h-3"></i> Alterar</button>
+                                <button onclick="cancelarConciliacao(${index})" class="text-xs bg-red-600 hover:bg-red-500 text-white rounded px-3 py-1 flex items-center gap-1"><i data-lucide="trash-2" class="w-3 h-3"></i> Cancelar</button>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="space-y-2">
+                                <h4 class="font-semibold text-gray-400">Cobranças do Sistema</h4>
+                                ${item.cobrancas.map(c => renderCard(c, 'cobranca')).join('')}
+                            </div>
+                            <div class="space-y-2">
+                                 <h4 class="font-semibold text-gray-400">Transações do Banco</h4>
+                                ${item.transacoes.map(t => renderCard(t, 'transacao')).join('')}
+                            </div>
+                        </div>
+                         <p class="text-xs text-gray-500 mt-3">Nota: ${item.notas}</p>
+                    </div>
+                `;
+            }).join('');
+            lucide.createIcons();
+        }
+
+        function reverterConciliacao(index) {
+            const itemRevertido = appState.conciliacoesConcluidas[index];
+            if (!itemRevertido) return;
+
+            appState.cobrancas.push(...itemRevertido.cobrancas);
+            appState.transacoes.push(...itemRevertido.transacoes);
+            appState.conciliacoesConcluidas.splice(index, 1);
+
+            showToast('Conciliação revertida. Os itens voltaram para pendências.', 'success');
+            renderHistory();
+        }
+
+        function cancelarConciliacao(index) {
+            if (confirm('Tem a certeza que deseja cancelar permanentemente esta conciliação? Esta ação não pode ser desfeita.')) {
+                appState.conciliacoesConcluidas.splice(index, 1);
+                showToast('Registo de conciliação cancelado.', 'success');
+                renderHistory();
+            }
+        }
+        
+        window.onload = () => {
+            loadApiConfig();
+            renderAll();
+            document.querySelectorAll('.page-content').forEach(p => p.classList.add('hidden'));
+            document.getElementById('dashboard-content').classList.remove('hidden');
+        };
+    </script>
+</body>
+</html>
