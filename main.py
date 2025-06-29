@@ -55,8 +55,7 @@ def pre_processar_entrada(dados: Entrada):
 @app.on_event("startup")
 async def startup_event():
     global model
-    # --- CORREÇÃO AQUI ---
-    # Carrega o modelo na inicialização da API
+    # --- CÓDIGO CORRIGIDO ---
     model = carregar_modelo()
     if model is None:
         raise RuntimeError("O modelo não pôde ser carregado. A API não pode iniciar.")
