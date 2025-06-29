@@ -7,8 +7,6 @@ import os
 # Importação para a correção de CORS
 from fastapi.middleware.cors import CORSMiddleware
 
-# --- CORREÇÃO DO CAMINHO DO MODELO ---
-# Agora, o caminho está simples e direto, sem ".."
 MODEL_PATH = 'modelo/modelo_conciliacao.pkl'
 
 # Tenta carregar o modelo treinado.
