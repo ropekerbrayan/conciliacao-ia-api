@@ -1,8 +1,8 @@
 import os
 import joblib
 
-# Altere esta linha para o novo nome do ficheiro
-MODEL_PATH = 'ia_model.pkl'
+# CORREÇÃO: Voltamos ao nome original do modelo, que foi o que enviámos.
+MODEL_PATH = 'modelo_conciliacao.pkl'
 
 def carregar_modelo():
     if not os.path.exists(MODEL_PATH):

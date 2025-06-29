@@ -352,7 +352,7 @@
                             tipo_trans: trans.tipo
                         };
 
-                        const response = await fetch('http://127.0.0.1:8000/prever', {
+                        const response = await fetch('https://conciliacao-ia-api.onrender.com/prever', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(corpoRequisicao)
@@ -404,7 +404,7 @@
             html += createAccordionItem('conciliados', 'Conciliados Automaticamente', conciliados.length, conciliadosContent);
             
             // Ordena as sugestões pela confiança, da maior para a menor
-            sugestoesGlobais.sort((a, b) => b.confianca - a.confianca);
+            sugestoesGlobais.sort((a, b) => b.confianca - a.b.confianca);
             let sugestoesContent = sugestoesGlobais.map((item, index) => `<div class="p-3 bg-gray-900/50 border border-gray-700 rounded-lg shadow-md">${item.cobrancas.map(cob => renderCard(cob, 'cobranca', item)).join('<div class="text-center text-blue-400 font-bold my-1">+</div>')} <div class="text-center text-blue-400 font-bold my-2">↑↓</div> ${renderCard(item.transacao, 'transacao', item)}<div class="text-right mt-2"><button class="bg-blue-600 hover:bg-blue-500 text-xs font-bold py-1 px-3 rounded" onclick="aceitarSugestao(${index})">Aceitar Sugestão</button></div></div>`).join('');
             html += createAccordionItem('sugestoes', 'Sugestões de Conciliação', sugestoesGlobais.length, sugestoesContent);
             
