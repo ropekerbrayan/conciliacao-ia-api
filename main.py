@@ -4,12 +4,12 @@ import joblib
 import pandas as pd
 from thefuzz import fuzz
 import os
-# Importação para a correção de CORS
 from fastapi.middleware.cors import CORSMiddleware
 
+# Importa a função do outro ficheiro
 from carregador_modelo import carregar_modelo
 
-model = None  # será carregado no startup
+model = None  # Variável global para armazenar o modelo
 
 # Inicializa o FastAPI
 app = FastAPI(
@@ -18,16 +18,14 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Adiciona o middleware CORS para permitir a comunicação com o frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Permite todas as origens
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],  # Permite todos os métodos
-    allow_headers=["*"],  # Permite todos os cabeçalhos
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-# Modelo de dados para a entrada da API
 class Entrada(BaseModel):
     cliente_cob: str
     info_pagador: str
@@ -37,9 +35,6 @@ class Entrada(BaseModel):
     tipo_trans: str
 
 def pre_processar_entrada(dados: Entrada):
-    """
-    Recebe os dados da API e os transforma nas features que o modelo espera.
-    """
     df = pd.DataFrame([dados.dict()])
     df['dif_valor'] = abs(df['valor_cob'] - df['valor_trans'])
     df['similaridade_nome'] = df.apply(lambda row: fuzz.token_sort_ratio(row['cliente_cob'], row['info_pagador']), axis=1)
@@ -59,6 +54,10 @@ def pre_processar_entrada(dados: Entrada):
 
 @app.on_event("startup")
 async def startup_event():
+    global model
+    # --- CORREÇÃO AQUI ---
+    # Carrega o modelo na inicialização da API
+    model = carregar_modelo()
     if model is None:
         raise RuntimeError("O modelo não pôde ser carregado. A API não pode iniciar.")
 
@@ -68,9 +67,9 @@ def home():
 
 @app.post("/prever")
 def prever(dados: Entrada):
-    """
-    Recebe dados de uma cobrança e uma transação e retorna a predição do modelo.
-    """
+    if model is None:
+        raise HTTPException(status_code=503, detail="Modelo não está carregado. A API pode estar a inicializar.")
+    
     df_processado = pre_processar_entrada(dados)
     features_modelo = ['valor_cob', 'valor_trans', 'dif_valor', 'similaridade_nome', 'tipo_compativel']
     X_para_prever = df_processado[features_modelo]
