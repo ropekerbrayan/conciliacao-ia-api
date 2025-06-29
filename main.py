@@ -7,8 +7,9 @@ import os
 # Importação para a correção de CORS
 from fastapi.middleware.cors import CORSMiddleware
 
-# Caminho para o modelo
-MODEL_PATH = os.path.join(os.path.dirname(__file__), '..', 'modelo', 'modelo_conciliacao.pkl')
+# --- CORREÇÃO DO CAMINHO DO MODELO ---
+# Agora, o caminho está simples e direto, sem ".."
+MODEL_PATH = 'modelo/modelo_conciliacao.pkl'
 
 # Tenta carregar o modelo treinado.
 try:
@@ -26,19 +27,14 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# --- INÍCIO DA CORREÇÃO DE CORS ---
-# Adiciona o "crachá de permissão" (Middleware)
-# Isto permite que o seu dashboard (executado a partir de qualquer lugar)
-# possa comunicar com a API.
+# Adiciona o middleware CORS para permitir a comunicação com o frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Permite todas as origens (ex: file://, http://localhost)
+    allow_origins=["*"],  # Permite todas as origens
     allow_credentials=True,
-    allow_methods=["*"],  # Permite todos os métodos (GET, POST, etc.)
+    allow_methods=["*"],  # Permite todos os métodos
     allow_headers=["*"],  # Permite todos os cabeçalhos
 )
-# --- FIM DA CORREÇÃO DE CORS ---
-
 
 # Modelo de dados para a entrada da API
 class Entrada(BaseModel):
@@ -52,17 +48,11 @@ class Entrada(BaseModel):
 def pre_processar_entrada(dados: Entrada):
     """
     Recebe os dados da API e os transforma nas features que o modelo espera.
-    Esta função deve ser IDÊNTICA à lógica de pré-processamento do script de treino.
     """
     df = pd.DataFrame([dados.dict()])
-
-    # 1. Diferença de valor
     df['dif_valor'] = abs(df['valor_cob'] - df['valor_trans'])
-    
-    # 2. Similaridade de nomes
     df['similaridade_nome'] = df.apply(lambda row: fuzz.token_sort_ratio(row['cliente_cob'], row['info_pagador']), axis=1)
 
-    # 3. Análise do tipo de pagamento
     def check_tipo_match(row):
         cob_lower = str(row['tipo_cob']).lower()
         trans_lower = str(row['tipo_trans']).lower()
@@ -74,9 +64,7 @@ def pre_processar_entrada(dados: Entrada):
             return 1
         return 0
     df['tipo_compativel'] = df.apply(check_tipo_match, axis=1)
-
     return df
-
 
 @app.on_event("startup")
 async def startup_event():
@@ -92,30 +80,12 @@ def prever(dados: Entrada):
     """
     Recebe dados de uma cobrança e uma transação e retorna a predição do modelo.
     """
-    # Pré-processa os dados recebidos
     df_processado = pre_processar_entrada(dados)
-
-    # Define as features que o modelo precisa, na ordem correta
-    features_modelo = [
-        'valor_cob',
-        'valor_trans',
-        'dif_valor',
-        'similaridade_nome',
-        'tipo_compativel'
-    ]
-    
-    # Garante que as colunas estejam na mesma ordem do treinamento
+    features_modelo = ['valor_cob', 'valor_trans', 'dif_valor', 'similaridade_nome', 'tipo_compativel']
     X_para_prever = df_processado[features_modelo]
-
-    # Realiza a predição
     predicao_array = model.predict(X_para_prever)
     probabilidade_array = model.predict_proba(X_para_prever)
-
-    # Extrai os resultados
     predicao = bool(predicao_array[0])
-    confianca = round(probabilidade_array[0][1], 4) # Retorna a probabilidade da classe "1" (match)
+    confianca = round(probabilidade_array[0][1], 4)
+    return {"match": predicao, "confianca": confianca}
 
-    return {
-        "match": predicao,
-        "confianca": confianca
-    }
